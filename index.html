@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebXR Demo - Selecciona tu experiencia</title>
+    <style>
+      html, body {
+        position: relative; 
+        margin: 0; 
+        width: 100%; 
+        height: 100%; 
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .container {
+        text-align: center;
+        color: white;
+        max-width: 600px;
+        padding: 20px;
+      }
+      
+      h1 {
+        font-size: 3em;
+        margin-bottom: 20px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      }
+      
+      .demo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 40px;
+      }
+      
+      .demo-card {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 20px;
+        transition: transform 0.3s ease, background 0.3s ease;
+        cursor: pointer;
+        border: 2px solid rgba(255,255,255,0.2);
+      }
+      
+      .demo-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255,255,255,0.2);
+      }
+      
+      .demo-card h3 {
+        margin: 10px 0;
+        font-size: 1.5em;
+      }
+      
+      .demo-card p {
+        margin: 10px 0;
+        opacity: 0.9;
+        line-height: 1.4;
+      }
+      
+      .emoji {
+        font-size: 3em;
+        margin-bottom: 10px;
+      }
+      
+      .requirements {
+        background: rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 15px;
+        margin-top: 30px;
+        font-size: 0.9em;
+      }
+      
+      .requirements h4 {
+        margin: 0 0 10px 0;
+        color: #ffeb3b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🥽 WebXR Demo</h1>
+      <p>Selecciona una experiencia de Realidad Aumentada</p>
+      
+      <div class="demo-grid">
+        <div class="demo-card" onclick="loadDemo('compile-target')">
+          <div class="emoji">📸</div>
+          <h3>1. Crear Target</h3>
+          <p>🎯 Toma foto de tu carnet para usar como marcador AR (REQUERIDO PRIMERO)</p>
+        </div>
+        
+        <div class="demo-card" onclick="loadDemo('geometry-builder')">
+          <div class="emoji">🎯</div>
+          <h3>2. Geometry Builder AR</h3>
+          <p>📚 Juego educativo: Construye con formas geométricas en AR y aprende volúmenes (ODS 4)</p>
+        </div>
+        
+        <div class="demo-card" onclick="loadDemo('ar-image')">
+          <div class="emoji">🖼️</div>
+          <h3>Tracking de Imágenes</h3>
+          <p>Apunta tu cámara a imágenes específicas para ver modelos 3D</p>
+        </div>
+        
+        <div class="demo-card" onclick="loadDemo('ar-face')">
+          <div class="emoji">😎</div>
+          <h3>Filtros Faciales</h3>
+          <p>Pruébate sombreros, lentes y accesorios virtuales</p>
+        </div>
+      </div>
+      
+      <div class="requirements">
+        <h4>📱 Requisitos:</h4>
+        <p>• Dispositivo con cámara (preferiblemente móvil)</p>
+        <p>• Navegador compatible (Chrome, Safari, Firefox)</p>
+        <p>• Buena iluminación</p>
+        <p>• Permitir acceso a la cámara cuando se solicite</p>
+      </div>
+    </div>
+
+    <script>
+      function loadDemo(type) {
+        if (type === 'compile-target') {
+          window.location.href = '/compile-target.html';
+        } else if (type === 'geometry-builder') {
+          window.location.href = '/geometry-builder.html';
+        } else if (type === 'ar-image') {
+          window.location.href = '/ar-image.html';
+        } else if (type === 'ar-face') {
+          window.location.href = '/ar-face.html';
+        }
+      }
+      
+      // Detectar si es dispositivo móvil
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (!isMobile) {
+        const container = document.querySelector('.container');
+        const warning = document.createElement('div');
+        warning.style.cssText = `
+          background: rgba(255, 152, 0, 0.2);
+          border: 2px solid #ff9800;
+          border-radius: 10px;
+          padding: 15px;
+          margin-top: 20px;
+          color: #ff9800;
+        `;
+        warning.innerHTML = `
+          <strong>⚠️ Aviso:</strong> Esta aplicación funciona mejor en dispositivos móviles con cámara. 
+          En computadoras de escritorio, algunas funciones pueden estar limitadas.
+        `;
+        container.appendChild(warning);
+      }
+    </script>
+  </body>
+</html>

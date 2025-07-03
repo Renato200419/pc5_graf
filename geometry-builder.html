@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry Builder AR - Juego Educativo</title>
+    <script src="https://unpkg.com/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+    
+    <script>
+        // Verificar que las librerías se carguen correctamente
+        window.addEventListener('load', () => {
+            console.log('🔍 Verificando librerías...');
+            
+            // Crear div de debug visual
+            const debugDiv = document.createElement('div');
+            debugDiv.id = 'debug-info';
+            debugDiv.style.cssText = `
+                position: fixed; top: 10px; left: 10px; 
+                background: rgba(0,0,0,0.8); color: white; 
+                padding: 10px; border-radius: 5px; z-index: 10000;
+                font-size: 12px; max-width: 200px;
+            `;
+            
+            const threeLoaded = !!window.THREE;
+            const mindARLoaded = !!window.MindARThree;
+            
+            debugDiv.innerHTML = `
+                <h4 style="margin: 0 0 5px 0;">🔍 Debug Info</h4>
+                <p style="margin: 2px 0;">THREE.js: ${threeLoaded ? '✅' : '❌'}</p>
+                <p style="margin: 2px 0;">MindAR: ${mindARLoaded ? '✅' : '❌'}</p>
+                <p style="margin: 2px 0;">HTTPS: ${location.protocol === 'https:' ? '✅' : '❌'}</p>
+                <button onclick="this.parentElement.remove()" style="margin-top: 5px; padding: 5px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Cerrar</button>
+            `;
+            
+            document.body.appendChild(debugDiv);
+            
+            // Auto-remove después de 15 segundos
+            setTimeout(() => {
+                if (debugDiv.parentElement) {
+                    debugDiv.remove();
+                }
+            }, 15000);
+            
+            console.log('THREE disponible:', threeLoaded);
+            console.log('MindARThree disponible:', mindARLoaded);
+            
+            if (!threeLoaded) {
+                console.error('❌ THREE.js no se cargó correctamente');
+            }
+            if (!mindARLoaded) {
+                console.error('❌ MindAR no se cargó correctamente');
+            }
+        });
+    </script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            position: relative;
+        }
+        
+        /* UI Container */
+        #ui-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* Header con puntuación */
+        #header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            text-align: center;
+            pointer-events: auto;
+        }
+        
+        #score {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0;
+        }
+        
+        #mission {
+            font-size: 14px;
+            color: #ffeb3b;
+            margin: 5px 0 0 0;
+        }
+        
+        /* Panel de herramientas */
+        #toolbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+        
+        .tool-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 24px;
+        }
+        
+        .tool-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .tool-btn.active {
+            background: #4CAF50;
+            color: white;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+        
+        /* Panel lateral de información */
+        #info-panel {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 200px;
+            pointer-events: auto;
+        }
+        
+        /* Botones de acción */
+        #action-buttons {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        
+        .action-btn {
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s ease;
+        }
+        
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Overlay de inicio */
+        #start-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+            z-index: 2000;
+            pointer-events: auto;
+        }
+        
+        #start-overlay h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        #start-overlay p {
+            font-size: 1.2em;
+            text-align: center;
+            margin: 10px 0;
+            max-width: 400px;
+        }
+        
+        #start-btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.3s ease;
+        }
+        
+        #start-btn:hover {
+            background: #45a049;
+        }
+        
+        /* Instrucciones */
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .instructions h3 {
+            margin: 0 0 10px 0;
+            color: #ffeb3b;
+        }
+        
+        .instructions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        /* Overlay de misión completada */
+        #mission-complete {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            z-index: 1500;
+            pointer-events: auto;
+        }
+        
+        #mission-complete h2 {
+            color: #4CAF50;
+            margin: 0 0 15px 0;
+        }
+        
+        #back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            pointer-events: auto;
+            z-index: 1100;
+        }
+    </style>
+</head>
+<body>
+    <!-- Overlay de inicio -->
+    <div id="start-overlay">
+        <h1>🎯 Geometry Builder AR</h1>
+        <p>Construye estructuras geométricas en realidad aumentada</p>
+        
+        <div class="instructions">
+            <h3>📚 Objetivo Educativo (ODS 4 - Educación)</h3>
+            <ul>
+                <li>Aprende geometría espacial de forma interactiva</li>
+                <li>Calcula volúmenes y áreas de estructuras</li>
+                <li>Desarrolla pensamiento espacial y planificación</li>
+                <li>Resuelve misiones matemáticas divertidas</li>
+            </ul>
+        </div>
+        
+        <div class="instructions">
+            <h3>🎮 Cómo Jugar</h3>
+            <ul>
+                <li>Apunta la cámara a una superficie plana</li>
+                <li>Selecciona una forma geométrica del menú</li>
+                <li>Toca la pantalla para colocar bloques</li>
+                <li>Construye estructuras y completa misiones</li>
+            </ul>
+        </div>
+        
+        <button id="start-btn">🚀 Comenzar Juego</button>
+    </div>
+    
+    <!-- Botón volver -->
+    <button id="back-button" onclick="window.location.href='/'">← Volver</button>
+    
+    <!-- Contenedor de la UI del juego -->
+    <div id="ui-container">
+        <!-- Header con puntuación -->
+        <div id="header">
+            <p id="score">Volumen Total: 0 cm³</p>
+            <p id="mission">Misión: Coloca tu primer bloque</p>
+        </div>
+        
+        <!-- Toolbar de herramientas -->
+        <div id="toolbar">
+            <div class="tool-btn active" data-shape="cube" title="Cubo">🟦</div>
+            <div class="tool-btn" data-shape="sphere" title="Esfera">🔵</div>
+            <div class="tool-btn" data-shape="cylinder" title="Cilindro">🟫</div>
+            <div class="tool-btn" data-shape="pyramid" title="Pirámide">🔺</div>
+            <div class="tool-btn" data-shape="eraser" title="Borrar">🗑️</div>
+        </div>
+        
+        <!-- Panel de información -->
+        <div id="info-panel">
+            <h4>📐 Forma Seleccionada</h4>
+            <p id="shape-info">Cubo (1×1×1)</p>
+            <p id="volume-info">Volumen: 1 cm³</p>
+            <h4>📊 Estadísticas</h4>
+            <p id="blocks-count">Bloques: 0</p>
+            <p id="mission-progress">Progreso: 0%</p>
+        </div>
+        
+        <!-- Botones de acción -->
+        <div id="action-buttons">
+            <button class="action-btn" id="clear-all">🧹 Limpiar Todo</button>
+            <button class="action-btn" id="next-mission">➡️ Siguiente Misión</button>
+            <button class="action-btn" id="help-btn">❓ Ayuda</button>
+        </div>
+    </div>
+    
+    <!-- Overlay de misión completada -->
+    <div id="mission-complete">
+        <h2>🎉 ¡Misión Completada!</h2>
+        <p id="completion-message"></p>
+        <button class="action-btn" onclick="nextMission()">Continuar</button>
+    </div>
+    
+    <script>
+        console.log('🎮 Script cargado directamente en HTML');
+        
+        class GeometryBuilderAR {
+            constructor() {
+                console.log('🎯 Inicializando GeometryBuilderAR...');
+                this.setupEventListeners();
+                console.log('✅ Constructor completado');
+            }
+            
+            setupEventListeners() {
+                console.log('🔧 Configurando event listeners...');
+                
+                const startBtn = document.getElementById('start-btn');
+                if (startBtn) {
+                    console.log('✅ Botón start-btn encontrado');
+                    
+                    startBtn.addEventListener('click', () => {
+                        console.log('🚀 ¡Botón presionado!');
+                        this.startGame();
+                    });
+                } else {
+                    console.error('❌ No se encontró el botón start-btn');
+                }
+            }
+            
+            startGame() {
+                console.log('🎮 Iniciando juego...');
+                
+                // Ocultar overlay de inicio
+                const startOverlay = document.getElementById('start-overlay');
+                if (startOverlay) {
+                    startOverlay.style.display = 'none';
+                    console.log('✅ Overlay oculto');
+                }
+                
+                // Crear escena básica
+                this.createScene();
+                
+                // Mostrar mensaje de éxito
+                alert('🎉 ¡Juego iniciado exitosamente!\n\n🎯 Toca la pantalla para colocar bloques\n🔄 Usa el menú inferior para cambiar formas');
+            }
+            
+            async createScene() {
+                console.log('🌟 Iniciando experiencia AR...');
+                
+                // Verificar si MindAR está disponible
+                if (!window.MindARThree) {
+                    console.error('❌ MindARThree no está disponible');
+                    this.showMindARError('MindAR no está cargado. Verifica que las librerías estén disponibles.');
+                    return;
+                }
+                
+                try {
+                    console.log('📷 Inicializando MindAR...');
+                    
+                    // Verificar que el target existe
+                    const targetPath = './static/assets/targets/card.mind';
+                    console.log('🎯 Usando target:', targetPath);
+                    
+                    // Configuración de MindAR
+                    const mindConfig = {
+                        container: document.body,
+                        imageTargetSrc: targetPath,
+                        maxTrack: 1,
+                        uiLoading: 'no',
+                        uiScanning: 'no',
+                        uiError: 'no'
+                    };
+                    
+                    console.log('⚙️ Configuración MindAR:', mindConfig);
+                    
+                    // Crear instancia de MindAR
+                    this.mindarThree = new window.MindARThree(mindConfig);
+                    
+                    // Verificar que se creó correctamente
+                    if (!this.mindarThree) {
+                        throw new Error('No se pudo crear la instancia de MindARThree');
+                    }
+                    
+                    console.log('✅ Instancia MindAR creada');
+                    
+                    // Obtener renderer, scene y camera
+                    const { renderer, scene, camera } = this.mindarThree;
+                    
+                    if (!renderer || !scene || !camera) {
+                        throw new Error('Componentes de MindAR no disponibles');
+                    }
+                    
+                    this.scene = scene;
+                    this.camera = camera;
+                    this.renderer = renderer;
+                    
+                    console.log('✅ Componentes MindAR obtenidos');
+                    
+                    // Crear anchor para el tracking
+                    this.anchor = this.mindarThree.addAnchor(0);
+                    
+                    if (!this.anchor) {
+                        throw new Error('No se pudo crear el anchor');
+                    }
+                    
+                    console.log('✅ Anchor creado');
+                    
+                } catch (error) {
+                    console.error('❌ Error detallado con MindAR:', error);
+                    
+                    // Mostrar debug visual en pantalla
+                    const debugDiv = document.createElement('div');
+                    debugDiv.style.cssText = `
+                        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                        background: rgba(0,0,0,0.9); color: white; padding: 20px;
+                        z-index: 9999; font-size: 14px; overflow-y: auto;
+                    `;
+                    debugDiv.innerHTML = `
+                        <h2>🔍 Error de AR</h2>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p><strong>Target path:</strong> ${targetPath}</p>
+                        <p><strong>MindAR disponible:</strong> ${!!window.MindARThree}</p>
+                        <p><strong>Stack:</strong> ${error.stack}</p>
+                        <p style="color: #ff6b6b; font-weight: bold; margin-top: 20px;">Esta aplicación requiere AR para funcionar. Por favor, verifica:</p>
+                        <ul style="text-align: left; margin: 10px 0;">
+                            <li>Que tengas una cámara disponible</li>
+                            <li>Que hayas dado permisos de cámara</li>
+                            <li>Que el archivo book.mind exista</li>
+                            <li>Que estés usando HTTPS</li>
+                        </ul>
+                        <button onclick="location.reload()" style="padding: 10px; margin-top: 20px; background: #4CAF50; color: white; border: none; border-radius: 5px;">Reintentar</button>
+                        <button onclick="window.location.href = '/'" style="padding: 10px; margin-top: 20px; margin-left: 10px; background: #2196F3; color: white; border: none; border-radius: 5px;">Volver al Inicio</button>
+                    `;
+                    document.body.appendChild(debugDiv);
+                    return;
+                }
+                
+                // Configurar luces
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+                this.anchor.group.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(10, 10, 5);
+                this.anchor.group.add(directionalLight);
+                
+                // Crear grupo de contenido que solo será visible cuando se detecte el target
+                this.gameContent = new THREE.Group();
+                this.anchor.group.add(this.gameContent);
+                
+                // Crear grid en el grupo de contenido
+                const gridHelper = new THREE.GridHelper(2, 4, 0x00ff00, 0x00aa00);
+                this.gameContent.add(gridHelper);
+                
+                // Array para bloques
+                this.blocks = [];
+                this.currentShape = 'cube';
+                
+                // Inicialmente ocultar el contenido
+                this.gameContent.visible = false;
+                
+                // Configurar eventos de tracking
+                this.setupTargetTracking();
+                
+                // Configurar interacción
+                this.setupInteraction();
+                
+                // Iniciar MindAR
+                await this.mindarThree.start();
+                console.log('✅ MindAR iniciado exitosamente');
+                
+                // Mostrar instrucciones específicas de AR
+                setTimeout(() => {
+                    this.showARInstructions();
+                }, 1000);
+                
+                console.log('✅ Escena AR creada');
+            }
+            
+            setupTargetTracking() {
+                console.log('🎯 Configurando tracking del target...');
+                
+                // Evento cuando se encuentra el target
+                this.anchor.onTargetFound = () => {
+                    console.log('🎯 ¡Target encontrado! Mostrando contenido del juego');
+                    this.gameContent.visible = true;
+                    this.showTargetFoundMessage();
+                };
+                
+                // Evento cuando se pierde el target
+                this.anchor.onTargetLost = () => {
+                    console.log('❌ Target perdido. Ocultando contenido del juego');
+                    this.gameContent.visible = false;
+                    this.showTargetLostMessage();
+                };
+            }
+            
+            showARInstructions() {
+                const instructionDiv = document.createElement('div');
+                instructionDiv.style.cssText = `
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    background: rgba(0,0,0,0.9); color: white; padding: 20px;
+                    border-radius: 10px; text-align: center; z-index: 9999;
+                    max-width: 300px; font-size: 16px;
+                `;
+                instructionDiv.innerHTML = `
+                    <h3>📚 Geometry Builder AR</h3>
+                    <p>🎯 <strong>Apunta la cámara a la tarjeta/carta</strong> para comenzar a jugar</p>
+                    <p>🃏 Cuando detecte la tarjeta, aparecerá el área de construcción</p>
+                    <p>🎮 Toca para colocar formas geométricas</p>
+                    <button onclick="this.parentElement.remove()" style="padding: 10px 20px; margin-top: 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">Entendido</button>
+                `;
+                document.body.appendChild(instructionDiv);
+                
+                // Auto-remove después de 10 segundos
+                setTimeout(() => {
+                    if (instructionDiv.parentElement) {
+                        instructionDiv.remove();
+                    }
+                }, 10000);
+            }
+            
+            showTargetFoundMessage() {
+                const messageDiv = document.createElement('div');
+                messageDiv.style.cssText = `
+                    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+                    background: rgba(76, 175, 80, 0.9); color: white; padding: 10px 20px;
+                    border-radius: 20px; z-index: 9999; font-weight: bold;
+                `;
+                messageDiv.textContent = '🎯 ¡Tarjeta detectada! Ya puedes construir';
+                document.body.appendChild(messageDiv);
+                
+                setTimeout(() => {
+                    if (messageDiv.parentElement) {
+                        messageDiv.remove();
+                    }
+                }, 3000);
+            }
+            
+            showTargetLostMessage() {
+                const messageDiv = document.createElement('div');
+                messageDiv.style.cssText = `
+                    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+                    background: rgba(244, 67, 54, 0.9); color: white; padding: 10px 20px;
+                    border-radius: 20px; z-index: 9999; font-weight: bold;
+                `;
+                messageDiv.textContent = '❌ Tarjeta perdida. Vuelve a apuntar la cámara';
+                document.body.appendChild(messageDiv);
+                
+                setTimeout(() => {
+                    if (messageDiv.parentElement) {
+                        messageDiv.remove();
+                    }
+                }, 3000);
+            }
+            
+            showTargetRequiredMessage() {
+                const messageDiv = document.createElement('div');
+                messageDiv.style.cssText = `
+                    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+                    background: rgba(255, 152, 0, 0.9); color: white; padding: 10px 20px;
+                    border-radius: 20px; z-index: 9999; font-weight: bold;
+                `;
+                messageDiv.textContent = '🃏 Primero apunta la cámara a la tarjeta para poder construir';
+                document.body.appendChild(messageDiv);
+                
+                setTimeout(() => {
+                    if (messageDiv.parentElement) {
+                        messageDiv.remove();
+                    }
+                }, 3000);
+            }
+            
+            showMindARError(message) {
+                console.error('❌ Error de MindAR:', message);
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = `
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    background: rgba(244, 67, 54, 0.95); color: white; padding: 30px;
+                    border-radius: 15px; text-align: center; z-index: 9999;
+                    max-width: 400px; font-size: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                `;
+                errorDiv.innerHTML = `
+                    <h2 style="margin: 0 0 20px 0; color: #ffcdd2;">🚫 Error de AR</h2>
+                    <p style="margin: 10px 0;"><strong>Problema:</strong> ${message}</p>
+                    <p style="margin: 20px 0; color: #ffcdd2; font-weight: bold;">Esta aplicación requiere realidad aumentada para funcionar correctamente.</p>
+                    <div style="text-align: left; margin: 15px 0; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+                        <strong>Verifica que:</strong>
+                        <ul style="margin: 5px 0; padding-left: 20px;">
+                            <li>Tu dispositivo tenga cámara</li>
+                            <li>Hayas dado permisos de cámara</li>
+                            <li>Estés usando HTTPS</li>
+                            <li>El archivo card.mind esté disponible</li>
+                        </ul>
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                        <button onclick="location.reload()" style="padding: 12px 20px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">🔄 Reintentar</button>
+                        <button onclick="window.location.href = '/'" style="padding: 12px 20px; background: #2196F3; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">🏠 Volver al Inicio</button>
+                    </div>
+                `;
+                document.body.appendChild(errorDiv);
+            }
+            
+            setupInteraction() {
+                // Configurar interacción del canvas
+                if (this.renderer && this.renderer.domElement) {
+                    const canvas = this.renderer.domElement;
+                    
+                    canvas.addEventListener('click', (event) => {
+                        // Solo permitir colocación si el target está visible (en modo AR) o estamos en modo básico
+                        if (!this.gameContent || this.gameContent.visible || !this.mindarThree) {
+                            this.placeBlock(event);
+                        } else {
+                            this.showTargetRequiredMessage();
+                        }
+                    });
+                    
+                    canvas.addEventListener('touchstart', (event) => {
+                        event.preventDefault();
+                        // Solo permitir colocación si el target está visible (en modo AR) o estamos en modo básico
+                        if (!this.gameContent || this.gameContent.visible || !this.mindarThree) {
+                            this.placeBlock(event);
+                        } else {
+                            this.showTargetRequiredMessage();
+                        }
+                    });
+                }
+                
+                // Configurar toolbar
+                document.querySelectorAll('.tool-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.currentShape = btn.dataset.shape;
+                        this.updateShapeInfo();
+                    });
+                });
+            }
+            
+            placeBlock(event) {
+                console.log('🎯 Colocando bloque:', this.currentShape);
+                
+                if (this.currentShape === 'eraser') {
+                    this.removeLastBlock();
+                    return;
+                }
+                
+                // Posición aleatoria para demo
+                const x = (Math.random() - 0.5) * 3;
+                const z = (Math.random() - 0.5) * 3;
+                const y = 0.25;
+                
+                let geometry, material;
+                
+                switch(this.currentShape) {
+                    case 'cube':
+                        geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                        material = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
+                        break;
+                    case 'sphere':
+                        geometry = new THREE.SphereGeometry(0.25, 16, 16);
+                        material = new THREE.MeshLambertMaterial({ color: 0x2196F3 });
+                        break;
+                    case 'cylinder':
+                        geometry = new THREE.CylinderGeometry(0.25, 0.25, 0.5, 16);
+                        material = new THREE.MeshLambertMaterial({ color: 0xFF9800 });
+                        break;
+                    case 'pyramid':
+                        geometry = new THREE.ConeGeometry(0.25, 0.5, 8);
+                        material = new THREE.MeshLambertMaterial({ color: 0xE91E63 });
+                        break;
+                }
+                
+                const block = new THREE.Mesh(geometry, material);
+                block.position.set(x, y, z);
+                block.userData = { shape: this.currentShape };
+                
+                // Si estamos en modo AR, agregar al gameContent; si no, a la escena directamente
+                if (this.gameContent && this.gameContent.visible) {
+                    this.gameContent.add(block);
+                } else if (this.scene) {
+                    this.scene.add(block);
+                }
+                
+                this.blocks.push(block);
+                
+                this.updateStats();
+            }
+            
+            removeLastBlock() {
+                if (this.blocks.length > 0) {
+                    const lastBlock = this.blocks.pop();
+                    
+                    // Remover del contenedor correcto
+                    if (this.gameContent && lastBlock.parent === this.gameContent) {
+                        this.gameContent.remove(lastBlock);
+                    } else if (this.scene && lastBlock.parent === this.scene) {
+                        this.scene.remove(lastBlock);
+                    }
+                    
+                    this.updateStats();
+                }
+            }
+            
+            updateStats() {
+                const totalBlocks = this.blocks.length;
+                const volume = totalBlocks * 0.125; // Volumen aproximado
+                
+                document.getElementById('score').textContent = `Volumen Total: ${volume.toFixed(2)} cm³`;
+                document.getElementById('blocks-count').textContent = `Bloques: ${totalBlocks}`;
+                
+                if (totalBlocks === 0) {
+                    document.getElementById('mission').textContent = 'Misión: Coloca tu primer bloque';
+                } else if (totalBlocks < 5) {
+                    document.getElementById('mission').textContent = `Misión: Coloca ${5 - totalBlocks} bloques más`;
+                } else {
+                    document.getElementById('mission').textContent = '¡Misión completada! Sigue construyendo';
+                }
+            }
+            
+            updateShapeInfo() {
+                const shapeNames = {
+                    cube: 'Cubo (0.5×0.5×0.5)',
+                    sphere: 'Esfera (r=0.25)',
+                    cylinder: 'Cilindro (r=0.25, h=0.5)',
+                    pyramid: 'Pirámide (base=0.5)',
+                    eraser: 'Borrador'
+                };
+                
+                const volumes = {
+                    cube: '0.125',
+                    sphere: '0.065',
+                    cylinder: '0.098',
+                    pyramid: '0.042',
+                    eraser: '0'
+                };
+                
+                document.getElementById('shape-info').textContent = shapeNames[this.currentShape] || 'Desconocido';
+                document.getElementById('volume-info').textContent = `Volumen: ${volumes[this.currentShape] || '0'} cm³`;
+            }
+            
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                // Rotación suave
+                if (this.scene) {
+                    this.scene.rotation.y += 0.005;
+                }
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+        
+        // Inicializar cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('📄 DOM cargado, inicializando juego...');
+            window.gameInstance = new GeometryBuilderAR();
+        });
+        
+        // Funciones globales
+        window.nextMission = function() {
+            alert('🎉 ¡Misión completada! Continúa construyendo.');
+        };
+    </script>
+</body>
+</html>

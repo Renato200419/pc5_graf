@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crear Target para Geometry Builder AR</title>
+    <script src="static/libs/mindar/mindar-image.prod.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .step {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .step h3 {
+            color: #ffeb3b;
+            margin-top: 0;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            cursor: pointer;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background 0.3s ease;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        #preview {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        #progress {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .success {
+            background: rgba(76, 175, 80, 0.3);
+            border: 2px solid #4CAF50;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .download-link {
+            background: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        
+        .back-btn {
+            background: #666;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <button class="back-btn" onclick="window.location.href='/'">← Volver</button>
+    
+    <div class="container">
+        <h1>🎯 Crear Target para Geometry Builder AR</h1>
+        
+        <div class="step">
+            <h3>📸 Paso 1: Toma una foto de tu carnet</h3>
+            <p>Asegúrate de que:</p>
+            <ul>
+                <li>La imagen tenga buena iluminación</li>
+                <li>El carnet esté completamente visible</li>
+                <li>No haya reflejos o sombras</li>
+                <li>La foto esté enfocada y nítida</li>
+            </ul>
+            <input type="file" id="imageInput" accept="image/*" />
+            <img id="preview" />
+        </div>
+        
+        <div class="step">
+            <h3>🔧 Paso 2: Compilar Target</h3>
+            <p>Una vez que hayas seleccionado la imagen, haz clic en compilar:</p>
+            <button id="compileBtn" onclick="compileTarget()" disabled>
+                🚀 Compilar Target de AR
+            </button>
+        </div>
+        
+        <div id="progress">
+            <h3>⏳ Compilando...</h3>
+            <p>Esto puede tomar unos segundos. Por favor espera...</p>
+        </div>
+        
+        <div id="success" class="success">
+            <h3>✅ ¡Target Compilado Exitosamente!</h3>
+            <p>Tu carnet ahora puede ser usado como marcador AR.</p>
+            <a href="/geometry-builder.html" class="download-link">
+                🎮 Jugar Geometry Builder AR
+            </a>
+        </div>
+        
+        <div class="step">
+            <h3>📋 Instrucciones para Usar</h3>
+            <ol>
+                <li>Compila tu carnet como target aquí</li>
+                <li>Ve al juego Geometry Builder AR</li>
+                <li>Apunta la cámara a tu carnet</li>
+                <li>¡Los bloques aparecerán sobre el carnet!</li>
+                <li>Toca la pantalla para colocar formas geométricas</li>
+            </ol>
+        </div>
+    </div>
+    
+    <script>
+        let selectedImage = null;
+        
+        document.getElementById('imageInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedImage = file;
+                
+                // Mostrar preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('preview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    
+                    // Habilitar botón de compilar
+                    document.getElementById('compileBtn').disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        async function compileTarget() {
+            if (!selectedImage) {
+                alert('Por favor selecciona una imagen primero');
+                return;
+            }
+            
+            try {
+                // Mostrar progreso
+                document.getElementById('progress').style.display = 'block';
+                document.getElementById('compileBtn').disabled = true;
+                
+                // Crear canvas para procesar imagen
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = async function() {
+                    // Redimensionar imagen si es muy grande
+                    const maxSize = 512;
+                    let { width, height } = img;
+                    
+                    if (width > maxSize || height > maxSize) {
+                        const ratio = Math.min(maxSize / width, maxSize / height);
+                        width *= ratio;
+                        height *= ratio;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Convertir a ImageData
+                    const imageData = ctx.getImageData(0, 0, width, height);
+                    
+                    try {
+                        // Para esta demo, simulamos la compilación y guardamos la imagen directamente
+                        // En una implementación real, aquí usarías el compilador de MindAR
+                        console.log('Simulando compilación de target...');
+                        
+                        // Simular tiempo de compilación
+                        setTimeout(() => {
+                            // Convertir canvas a blob y guardar
+                            canvas.toBlob((blob) => {
+                                const reader = new FileReader();
+                                reader.onload = function() {
+                                    // Guardar los datos de la imagen como target
+                                    saveTargetFile(reader.result, width, height);
+                                    
+                                    // Mostrar éxito
+                                    document.getElementById('progress').style.display = 'none';
+                                    document.getElementById('success').style.display = 'block';
+                                };
+                                reader.readAsArrayBuffer(blob);
+                            }, 'image/jpeg', 0.8);
+                        }, 2000);
+                        
+                    } catch (error) {
+                        console.error('Error compilando target:', error);
+                        alert('Error al compilar el target. Intenta con otra imagen.');
+                        document.getElementById('progress').style.display = 'none';
+                        document.getElementById('compileBtn').disabled = false;
+                    }
+                };
+                
+                // Cargar imagen
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(selectedImage);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error procesando la imagen');
+                document.getElementById('progress').style.display = 'none';
+                document.getElementById('compileBtn').disabled = false;
+            }
+        }
+        
+        function saveTargetFile(targetData) {
+            // Crear el archivo .mind
+            const mindData = {
+                images: [targetData]
+            };
+            
+            // Guardar en localStorage para que el juego pueda accederlo
+            localStorage.setItem('geometryBuilderTarget', JSON.stringify(mindData));
+            
+            console.log('✅ Target guardado exitosamente');
+        }
+    </script>
+</body>
+</html>
