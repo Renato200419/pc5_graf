@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <title>Geometry Builder AR - Versión Final</title>
+    <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.153.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.153.0/examples/jsm/",
+            "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+        }
+    }
+    </script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background: #000;
+        }
+        
+        #startButton {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 25px 50px;
+            font-size: 24px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            z-index: 9999;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        
+        #startButton:hover {
+            transform: translate(-50%, -50%) scale(1.05);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+        }
+        
+        #scorePanel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            pointer-events: none;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        #scorePanel h3 {
+            margin: 0 0 15px 0;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #scorePanel p {
+            margin: 8px 0;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        #trackingStatus {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 12px 25px;
+            background: rgba(255, 152, 0, 0.9);
+            color: white;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 16px;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+        
+        #trackingStatus.found {
+            background: rgba(76, 175, 80, 0.9);
+        }
+        
+        #toolbar {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 40px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .shapeBtn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .shapeBtn:hover {
+            transform: scale(1.1);
+            border-color: rgba(255,255,255,0.6);
+        }
+        
+        .shapeBtn.active {
+            background: #4CAF50;
+            transform: scale(1.15);
+            box-shadow: 0 0 25px rgba(76, 175, 80, 0.8);
+            border-color: white;
+        }
+        
+        .shapeBtn.active::after {
+            content: '✓';
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: white;
+            color: #4CAF50;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        @keyframes fadeIn {
+            from { 
+                opacity: 0; 
+                transform: translate(-50%, 20px);
+            }
+            to { 
+                opacity: 1; 
+                transform: translate(-50%, 0);
+            }
+        }
+        
+        .notification {
+            position: fixed;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 18px;
+            z-index: 200;
+            animation: fadeIn 0.3s ease-out;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .notification.warning {
+            background: #FF9800;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.8;
+            pointer-events: none;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <button id="startButton" onclick="startAR()">🎮 Iniciar Geometry Builder AR</button>
+    
+    <div id="scorePanel" style="display: none;">
+        <h3>📚 Geometry Builder AR</h3>
+        <p style="color: #4CAF50; font-weight: bold;">🌍 ODS 4 - Educación de Calidad</p>
+        <hr style="border-color: rgba(255,255,255,0.2); margin: 15px 0;">
+        <p>📦 Bloques: <span id="blockCount">0</span></p>
+        <p>📐 Volumen Total: <span id="volumeCount">0.000</span> cm³</p>
+        <p style="color: #FFD700; font-weight: bold;">🎯 <span id="missionText">Coloca tu primer bloque</span></p>
+    </div>
+    
+    <div id="trackingStatus" style="display: none;">🔍 Buscando tarjeta...</div>
+    
+    <div id="toolbar" style="display: none;">
+        <button class="shapeBtn active" data-shape="cube" onclick="selectShape('cube')" title="Cubo">🟦</button>
+        <button class="shapeBtn" data-shape="sphere" onclick="selectShape('sphere')" title="Esfera">🔵</button>
+        <button class="shapeBtn" data-shape="cylinder" onclick="selectShape('cylinder')" title="Cilindro">🟫</button>
+        <button class="shapeBtn" data-shape="pyramid" onclick="selectShape('pyramid')" title="Pirámide">🔺</button>
+        <button class="shapeBtn" data-shape="clear" onclick="clearAll()" style="background: rgba(244,67,54,0.5);" title="Limpiar">🗑️</button>
+    </div>
+    
+    <div id="instructions" style="display: none;">Toca la pantalla para colocar bloques en el grid</div>
+    <div class="loading" id="loading">Cargando AR...</div>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { MindARThree } from 'mindar-image-three';
+        
+        let currentShape = 'cube';
+        let blocks = [];
+        let totalVolume = 0;
+        let mindarThree = null;
+        let targetAnchor = null;
+        let scene = null;
+        let camera = null;
+        let renderer = null;
+        let gridContainer = null;
+        let blockContainer = null;
+        let interactionPlane = null;
+        let isTracking = false;
+        
+        // Sistema de grid tipo Minecraft
+        const GRID_SIZE = 0.3;
+        const GRID_WIDTH = 7;
+        const GRID_HEIGHT = 7;
+        const GRID_OFFSET_X = -0.9;
+        const GRID_OFFSET_Z = -0.9;
+        const gridMap = {};
+        
+        const volumes = {
+            cube: 0.027,
+            sphere: 0.014,
+            cylinder: 0.021,
+            pyramid: 0.009
+        };
+        
+        const missions = [
+            { count: 1, text: "Coloca tu primer bloque" },
+            { count: 3, text: "Construye con 3 bloques" },
+            { count: 5, text: "Alcanza 5 bloques" },
+            { volume: 0.1, text: "Supera 0.1 cm³ de volumen" },
+            { count: 10, text: "¡Crea una mega estructura!" },
+            { count: 15, text: "¡Arquitecto experto!" },
+            { volume: 0.5, text: "¡Maestro constructor!" }
+        ];
+        
+        window.startAR = async function() {
+            document.getElementById('startButton').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                // Inicializar MindAR
+                mindarThree = new MindARThree({
+                    container: document.body,
+                    imageTargetSrc: './static/assets/targets/card.mind',
+                    filterMinCF: 0.0001,
+                    filterBeta: 0.001
+                });
+                
+                ({ renderer, scene, camera } = mindarThree);
+                
+                // Configurar renderer
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                
+                // Configurar iluminación mejorada
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+                dirLight.position.set(0, 10, 5);
+                dirLight.castShadow = true;
+                dirLight.shadow.mapSize.width = 2048;
+                dirLight.shadow.mapSize.height = 2048;
+                scene.add(dirLight);
+                
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+                
+                // Configurar target anchor
+                targetAnchor = mindarThree.addAnchor(0);
+                
+                // Crear contenedor principal SIN ROTACIÓN para mantener grid estable
+                gridContainer = new THREE.Group();
+                targetAnchor.group.add(gridContainer);
+                
+                // Crear plano base
+                const baseGeometry = new THREE.PlaneGeometry(2.1, 2.1);
+                const baseMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x1a1a1a, 
+                    transparent: true, 
+                    opacity: 0.5,
+                    side: THREE.DoubleSide
+                });
+                const basePlane = new THREE.Mesh(baseGeometry, baseMaterial);
+                basePlane.rotation.x = -Math.PI / 2; // Mantener horizontal
+                basePlane.position.y = 0;
+                basePlane.receiveShadow = true;
+                gridContainer.add(basePlane);
+                
+                // Crear grid visual
+                createVisualGrid();
+                
+                // Contenedor para bloques
+                blockContainer = new THREE.Group();
+                gridContainer.add(blockContainer);
+                
+                // Crear plano invisible para interacción
+                const interactionGeometry = new THREE.PlaneGeometry(2.1, 2.1);
+                const interactionMaterial = new THREE.MeshBasicMaterial({ 
+                    visible: false,
+                    side: THREE.DoubleSide
+                });
+                interactionPlane = new THREE.Mesh(interactionGeometry, interactionMaterial);
+                interactionPlane.rotation.x = -Math.PI / 2;
+                interactionPlane.position.y = 0.01;
+                gridContainer.add(interactionPlane);
+                
+                // Configurar eventos
+                setupInteraction();
+                
+                // Eventos de tracking
+                targetAnchor.onTargetFound = () => {
+                    isTracking = true;
+                    document.getElementById('trackingStatus').textContent = '✅ Tarjeta detectada';
+                    document.getElementById('trackingStatus').classList.add('found');
+                    document.getElementById('instructions').style.display = 'block';
+                };
+                
+                targetAnchor.onTargetLost = () => {
+                    isTracking = false;
+                    document.getElementById('trackingStatus').textContent = '❌ Tarjeta perdida';
+                    document.getElementById('trackingStatus').classList.remove('found');
+                    document.getElementById('instructions').style.display = 'none';
+                };
+                
+                // Iniciar AR
+                await mindarThree.start();
+                renderer.setAnimationLoop(() => {
+                    renderer.render(scene, camera);
+                });
+                
+                // Mostrar UI
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('scorePanel').style.display = 'block';
+                document.getElementById('trackingStatus').style.display = 'block';
+                document.getElementById('toolbar').style.display = 'flex';
+                
+                updateMission();
+                
+            } catch (error) {
+                console.error('Error iniciando AR:', error);
+                document.getElementById('loading').textContent = 'Error al iniciar AR';
+            }
+        };
+        
+        function createVisualGrid() {
+            const gridGroup = new THREE.Group();
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
+            
+            // Líneas horizontales
+            for (let i = 0; i <= GRID_WIDTH; i++) {
+                const points = [];
+                const x = GRID_OFFSET_X + i * GRID_SIZE;
+                points.push(new THREE.Vector3(x, 0.01, GRID_OFFSET_Z));
+                points.push(new THREE.Vector3(x, 0.01, GRID_OFFSET_Z + GRID_WIDTH * GRID_SIZE));
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const line = new THREE.Line(geometry, lineMaterial);
+                gridGroup.add(line);
+            }
+            
+            // Líneas verticales
+            for (let i = 0; i <= GRID_HEIGHT; i++) {
+                const points = [];
+                const z = GRID_OFFSET_Z + i * GRID_SIZE;
+                points.push(new THREE.Vector3(GRID_OFFSET_X, 0.01, z));
+                points.push(new THREE.Vector3(GRID_OFFSET_X + GRID_HEIGHT * GRID_SIZE, 0.01, z));
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const line = new THREE.Line(geometry, lineMaterial);
+                gridGroup.add(line);
+            }
+            
+            gridContainer.add(gridGroup);
+        }
+        
+        function setupInteraction() {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            
+            function handleInteraction(event) {
+                if (!isTracking) {
+                    showNotification('Primero apunta a la tarjeta', 'warning');
+                    return;
+                }
+                
+                // Obtener coordenadas del touch/click
+                const rect = renderer.domElement.getBoundingClientRect();
+                let clientX, clientY;
+                
+                if (event.touches && event.touches.length > 0) {
+                    clientX = event.touches[0].clientX;
+                    clientY = event.touches[0].clientY;
+                } else {
+                    clientX = event.clientX;
+                    clientY = event.clientY;
+                }
+                
+                mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+                
+                // Raycast
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(interactionPlane);
+                
+                if (intersects.length > 0) {
+                    const point = intersects[0].point;
+                    
+                    // Convertir punto a coordenadas locales del grid
+                    const localPoint = gridContainer.worldToLocal(point.clone());
+                    
+                    // Calcular posición en el grid
+                    const gridX = Math.floor((localPoint.x - GRID_OFFSET_X) / GRID_SIZE);
+                    const gridZ = Math.floor((localPoint.z - GRID_OFFSET_Z) / GRID_SIZE);
+                    
+                    if (gridX >= 0 && gridX < GRID_WIDTH && gridZ >= 0 && gridZ < GRID_HEIGHT) {
+                        placeBlockAt(gridX, gridZ);
+                    }
+                }
+            }
+            
+            // Eventos táctiles y mouse
+            renderer.domElement.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                handleInteraction(e);
+            }, { passive: false });
+            
+            renderer.domElement.addEventListener('click', handleInteraction);
+        }
+        
+        function placeBlockAt(gridX, gridZ) {
+            // Calcular altura de apilamiento
+            const key = `${gridX},${gridZ}`;
+            const height = gridMap[key] || 0;
+            
+            // Limitar altura máxima
+            if (height >= 10) {
+                showNotification('Altura máxima alcanzada', 'warning');
+                return;
+            }
+            
+            // Posición mundial del bloque
+            const worldX = GRID_OFFSET_X + gridX * GRID_SIZE + GRID_SIZE/2;
+            const worldZ = GRID_OFFSET_Z + gridZ * GRID_SIZE + GRID_SIZE/2;
+            const worldY = height * GRID_SIZE + GRID_SIZE/2;
+            
+            // Crear bloque
+            const blockMesh = createBlockMesh(currentShape);
+            blockMesh.position.set(worldX, worldY, worldZ);
+            blockMesh.castShadow = true;
+            blockMesh.receiveShadow = true;
+            
+            // Animación de aparición
+            blockMesh.scale.set(0, 0, 0);
+            animateScale(blockMesh, 1);
+            
+            blockContainer.add(blockMesh);
+            
+            // Actualizar datos
+            gridMap[key] = height + 1;
+            blocks.push({
+                mesh: blockMesh,
+                shape: currentShape,
+                gridX: gridX,
+                gridZ: gridZ,
+                height: height
+            });
+            
+            totalVolume += volumes[currentShape];
+            updateUI();
+            
+            // Vibración y sonido
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            
+            // Efecto visual en el punto de colocación
+            createPlaceEffect(worldX, worldY, worldZ);
+        }
+        
+        function createBlockMesh(shape) {
+            let geometry;
+            const colors = {
+                cube: 0x4CAF50,
+                sphere: 0x2196F3,
+                cylinder: 0xFF9800,
+                pyramid: 0x9C27B0
+            };
+            
+            switch(shape) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(GRID_SIZE * 0.9, GRID_SIZE * 0.9, GRID_SIZE * 0.9);
+                    break;
+                case 'sphere':
+                    geometry = new THREE.SphereGeometry(GRID_SIZE * 0.45, 32, 32);
+                    break;
+                case 'cylinder':
+                    geometry = new THREE.CylinderGeometry(GRID_SIZE * 0.45, GRID_SIZE * 0.45, GRID_SIZE * 0.9, 32);
+                    break;
+                case 'pyramid':
+                    geometry = new THREE.ConeGeometry(GRID_SIZE * 0.45, GRID_SIZE * 0.9, 4);
+                    geometry.rotateY(Math.PI / 4);
+                    break;
+            }
+            
+            const material = new THREE.MeshStandardMaterial({ 
+                color: colors[shape],
+                metalness: 0.3,
+                roughness: 0.4
+            });
+            
+            return new THREE.Mesh(geometry, material);
+        }
+        
+        function createPlaceEffect(x, y, z) {
+            const geometry = new THREE.RingGeometry(0.1, 0.2, 32);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff, 
+                transparent: true, 
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+            const ring = new THREE.Mesh(geometry, material);
+            ring.position.set(x, y, z);
+            ring.rotation.x = -Math.PI / 2;
+            
+            scene.add(ring);
+            
+            // Animar el anillo
+            const startTime = Date.now();
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = elapsed / 500;
+                
+                if (progress < 1) {
+                    ring.scale.set(1 + progress * 2, 1 + progress * 2, 1);
+                    ring.material.opacity = 0.8 * (1 - progress);
+                    requestAnimationFrame(animate);
+                } else {
+                    scene.remove(ring);
+                }
+            }
+            animate();
+        }
+        
+        function animateScale(mesh, targetScale) {
+            const duration = 300;
+            const start = Date.now();
+            const initialScale = mesh.scale.x;
+            
+            function animate() {
+                const now = Date.now();
+                const progress = Math.min((now - start) / duration, 1);
+                
+                // Easing function
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const scale = initialScale + (targetScale - initialScale) * easeOut;
+                
+                mesh.scale.set(scale, scale, scale);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                }
+            }
+            
+            animate();
+        }
+        
+        window.selectShape = function(shape) {
+            currentShape = shape;
+            document.querySelectorAll('.shapeBtn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-shape="${shape}"]`).classList.add('active');
+            
+            // Vibración de feedback
+            if (navigator.vibrate) {
+                navigator.vibrate(20);
+            }
+        };
+        
+        window.clearAll = function() {
+            if (blocks.length === 0) return;
+            
+            blocks.forEach((block, index) => {
+                setTimeout(() => {
+                    animateScale(block.mesh, 0);
+                    setTimeout(() => {
+                        blockContainer.remove(block.mesh);
+                        block.mesh.geometry.dispose();
+                        block.mesh.material.dispose();
+                    }, 300);
+                }, index * 50);
+            });
+            
+            setTimeout(() => {
+                blocks = [];
+                totalVolume = 0;
+                Object.keys(gridMap).forEach(key => delete gridMap[key]);
+                updateUI();
+                showNotification('¡Escena limpiada!', 'info');
+            }, blocks.length * 50 + 300);
+        };
+        
+        function updateUI() {
+            document.getElementById('blockCount').textContent = blocks.length;
+            document.getElementById('volumeCount').textContent = totalVolume.toFixed(3);
+            updateMission();
+        }
+        
+        function updateMission() {
+            let currentMission = missions[0].text;
+            let previousMission = document.getElementById('missionText').textContent;
+            
+            for (let i = 0; i < missions.length; i++) {
+                const mission = missions[i];
+                if (mission.count && blocks.length >= mission.count) {
+                    currentMission = missions[i + 1]?.text || "¡Eres un maestro constructor!";
+                } else if (mission.volume && totalVolume >= mission.volume) {
+                    currentMission = missions[i + 1]?.text || "¡Volumen máximo alcanzado!";
+                } else {
+                    break;
+                }
+            }
+            
+            document.getElementById('missionText').textContent = currentMission;
+            
+            if (currentMission !== previousMission && blocks.length > 0) {
+                showNotification('¡Misión completada! 🎉', 'success');
+            }
+        }
+        
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            if (type === 'warning') {
+                notification.classList.add('warning');
+            } else if (type === 'success') {
+                notification.style.background = '#4CAF50';
+            }
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translate(-50%, 20px)';
+                setTimeout(() => notification.remove(), 300);
+            }, 2500);
+        }
+    </script>
+</body>
+</html>

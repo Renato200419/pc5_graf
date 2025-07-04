@@ -9,6 +9,14 @@ const PORT = 3000;
 
 // Servir archivos estáticos
 app.use(express.static('.'));
+app.use('/static', express.static('static'));
+
+// Headers para AR
+app.use((req, res, next) => {
+    res.header('Cross-Origin-Embedder-Policy', 'require-corp');
+    res.header('Cross-Origin-Opener-Policy', 'same-origin');
+    next();
+});
 
 // Ruta principal
 app.get('/', (req, res) => {

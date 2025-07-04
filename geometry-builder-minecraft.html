@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <title>Geometry Builder AR - Minecraft Style</title>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .mindar-ui-overlay {
+            display: none !important;
+        }
+        
+        #startButton {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            font-size: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 9999;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameUI {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+            font-family: Arial, sans-serif;
+        }
+        
+        #scorePanel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            pointer-events: auto;
+        }
+        
+        #scorePanel h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+        
+        #scorePanel p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        #toolbar {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+        
+        .shapeBtn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid white;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .shapeBtn.active {
+            background: #4CAF50;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.8);
+        }
+        
+        .shapeBtn:active {
+            transform: scale(0.95);
+        }
+        
+        #trackingStatus {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 152, 0, 0.9);
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+            display: none;
+        }
+        
+        #trackingStatus.found {
+            background: rgba(76, 175, 80, 0.9);
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(-50%) translateY(20px);
+                opacity: 0;
+            }
+        }
+        
+        /* Cursor/preview de bloque */
+        .preview-cursor {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(255,255,255,0.8);
+            background: rgba(76, 175, 80, 0.3);
+            pointer-events: none;
+            display: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+    <button id="startButton" onclick="startAR()">🎮 Iniciar Geometry Builder AR</button>
+    
+    <div id="gameUI" style="display: none;">
+        <div id="scorePanel">
+            <h3>📚 Geometry Builder AR</h3>
+            <p style="color: #4CAF50; font-weight: bold;">ODS 4 - Educación de Calidad</p>
+            <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+            <p>📦 Bloques: <span id="blockCount">0</span></p>
+            <p>📐 Volumen: <span id="volumeCount">0.000</span> cm³</p>
+            <p style="color: #FFD700;">🎯 <span id="missionText">Coloca tu primer bloque</span></p>
+        </div>
+        
+        <div id="trackingStatus">Buscando tarjeta...</div>
+        
+        <div id="toolbar">
+            <button class="shapeBtn active" data-shape="cube" onclick="selectShape('cube')">🟦</button>
+            <button class="shapeBtn" data-shape="sphere" onclick="selectShape('sphere')">🔵</button>
+            <button class="shapeBtn" data-shape="cylinder" onclick="selectShape('cylinder')">🟫</button>
+            <button class="shapeBtn" data-shape="pyramid" onclick="selectShape('pyramid')">🔺</button>
+            <button class="shapeBtn" data-shape="clear" onclick="clearAll()" style="background: rgba(244,67,54,0.5);">🗑️</button>
+        </div>
+    </div>
+    
+    <!-- Preview cursor -->
+    <div class="preview-cursor" id="previewCursor"></div>
+    
+    <a-scene
+        id="arScene"
+        mindar-image="imageTargetSrc: ./static/assets/targets/card.mind; maxTrack: 1"
+        color-space="sRGB"
+        embedded
+        renderer="colorManagement: true, physicallyCorrectLights"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+        visible="false"
+    >
+        <a-assets>
+            <a-asset-item id="optimerBoldFont" src="https://rawgit.com/mrdoob/three.js/dev/examples/fonts/optimer_bold.typeface.json"></a-asset-item>
+        </a-assets>
+
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        
+        <a-entity mindar-image-target="targetIndex: 0">
+            <!-- Contenedor principal sin rotación para mantener grid en 90 grados -->
+            <a-entity id="mainContainer">
+                <!-- Base Grid -->
+                <a-plane 
+                    position="0 0 0" 
+                    rotation="-90 0 0" 
+                    width="2.1" 
+                    height="2.1" 
+                    color="#1a1a1a"
+                    opacity="0.3"
+                    class="interactive"
+                ></a-plane>
+                
+                <!-- Grid visual de 7x7 -->
+                <a-entity id="gridCells"></a-entity>
+                
+                <!-- Container for blocks -->
+                <a-entity id="blockContainer"></a-entity>
+                
+                <!-- Educational Text -->
+                <a-text 
+                    value="Geometry Builder AR - ODS 4" 
+                    position="0 1.5 0" 
+                    align="center"
+                    color="#FFFFFF"
+                    width="4"
+                    font="optimerBoldFont"
+                ></a-text>
+            </a-entity>
+        </a-entity>
+    </a-scene>
+    
+    <script>
+        let currentShape = 'cube';
+        let blocks = [];
+        let totalVolume = 0;
+        let targetFound = false;
+        let mainContainer = null;
+        
+        // Sistema de grid tipo Minecraft
+        const GRID_SIZE = 0.3;
+        const GRID_WIDTH = 7;
+        const GRID_HEIGHT = 7;
+        const GRID_OFFSET_X = -0.9; // Inicio del grid en X
+        const GRID_OFFSET_Z = -0.9; // Inicio del grid en Z
+        
+        // Mapa de ocupación del grid
+        const gridMap = {};
+        
+        const volumes = {
+            cube: 0.027,
+            sphere: 0.014,
+            cylinder: 0.021,
+            pyramid: 0.009
+        };
+        
+        const missions = [
+            { count: 1, text: "Coloca tu primer bloque" },
+            { count: 3, text: "Construye con 3 bloques" },
+            { count: 5, text: "Alcanza 5 bloques" },
+            { volume: 0.1, text: "Supera 0.1 cm³ de volumen" },
+            { count: 10, text: "¡Crea una mega estructura!" }
+        ];
+        
+        function startAR() {
+            document.getElementById('startButton').style.display = 'none';
+            document.getElementById('gameUI').style.display = 'block';
+            document.getElementById('trackingStatus').style.display = 'block';
+            
+            const scene = document.querySelector('a-scene');
+            scene.setAttribute('visible', 'true');
+            
+            // Inicializar el grid visual
+            setTimeout(() => {
+                createVisualGrid();
+                setupTargetEvents();
+                setupInteraction();
+            }, 1000);
+            
+            updateMission();
+        }
+        
+        function createVisualGrid() {
+            const gridCells = document.getElementById('gridCells');
+            
+            // Crear celdas del grid
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                for (let z = 0; z < GRID_HEIGHT; z++) {
+                    const worldX = GRID_OFFSET_X + x * GRID_SIZE;
+                    const worldZ = GRID_OFFSET_Z + z * GRID_SIZE;
+                    
+                    // Línea horizontal
+                    if (z === 0) {
+                        const lineH = document.createElement('a-box');
+                        lineH.setAttribute('position', `${worldX} 0.01 ${GRID_OFFSET_Z - GRID_SIZE/2}`);
+                        lineH.setAttribute('width', GRID_SIZE);
+                        lineH.setAttribute('height', '0.01');
+                        lineH.setAttribute('depth', '0.01');
+                        lineH.setAttribute('color', '#00ff00');
+                        gridCells.appendChild(lineH);
+                    }
+                    
+                    // Línea vertical
+                    if (x === 0) {
+                        const lineV = document.createElement('a-box');
+                        lineV.setAttribute('position', `${GRID_OFFSET_X - GRID_SIZE/2} 0.01 ${worldZ}`);
+                        lineV.setAttribute('width', '0.01');
+                        lineV.setAttribute('height', '0.01');
+                        lineV.setAttribute('depth', GRID_SIZE);
+                        lineV.setAttribute('color', '#00ff00');
+                        gridCells.appendChild(lineV);
+                    }
+                    
+                    // Líneas finales
+                    if (z === GRID_HEIGHT - 1) {
+                        const lineH = document.createElement('a-box');
+                        lineH.setAttribute('position', `${worldX} 0.01 ${worldZ + GRID_SIZE/2}`);
+                        lineH.setAttribute('width', GRID_SIZE);
+                        lineH.setAttribute('height', '0.01');
+                        lineH.setAttribute('depth', '0.01');
+                        lineH.setAttribute('color', '#00ff00');
+                        gridCells.appendChild(lineH);
+                    }
+                    
+                    if (x === GRID_WIDTH - 1) {
+                        const lineV = document.createElement('a-box');
+                        lineV.setAttribute('position', `${worldX + GRID_SIZE/2} 0.01 ${worldZ}`);
+                        lineV.setAttribute('width', '0.01');
+                        lineV.setAttribute('height', '0.01');
+                        lineV.setAttribute('depth', GRID_SIZE);
+                        lineV.setAttribute('color', '#00ff00');
+                        gridCells.appendChild(lineV);
+                    }
+                }
+            }
+        }
+        
+        function setupTargetEvents() {
+            const target = document.querySelector('[mindar-image-target]');
+            mainContainer = document.getElementById('mainContainer');
+            
+            target.addEventListener('targetFound', () => {
+                targetFound = true;
+                const status = document.getElementById('trackingStatus');
+                status.textContent = '✅ Tarjeta detectada';
+                status.classList.add('found');
+                console.log('Target found!');
+            });
+            
+            target.addEventListener('targetLost', () => {
+                targetFound = false;
+                const status = document.getElementById('trackingStatus');
+                status.textContent = '❌ Tarjeta perdida';
+                status.classList.remove('found');
+                console.log('Target lost!');
+            });
+        }
+        
+        function setupInteraction() {
+            const scene = document.querySelector('a-scene');
+            const canvas = scene.canvas;
+            
+            // Configurar cursor para móvil
+            const camera = document.querySelector('a-camera');
+            const cursor = document.createElement('a-entity');
+            cursor.setAttribute('cursor', 'rayOrigin: mouse; fuseTimeout: 0');
+            cursor.setAttribute('raycaster', 'objects: .interactive; far: 100');
+            cursor.setAttribute('position', '0 0 -1');
+            cursor.setAttribute('geometry', 'primitive: ring; radiusInner: 0.02; radiusOuter: 0.03');
+            cursor.setAttribute('material', 'color: white; shader: flat; opacity: 0.5');
+            cursor.setAttribute('visible', 'false');
+            camera.appendChild(cursor);
+            
+            // Manejador de toques
+            const handleTouch = (event) => {
+                if (!targetFound) {
+                    showNotification('Primero apunta a la tarjeta', 'warning');
+                    return;
+                }
+                
+                event.preventDefault();
+                
+                const touch = event.touches[0] || event.changedTouches[0];
+                const rect = canvas.getBoundingClientRect();
+                const x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                // Crear evento de mouse para A-Frame
+                const mouseEvent = new MouseEvent('click', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    screenX: touch.screenX,
+                    screenY: touch.screenY
+                });
+                
+                // Disparar raycast manualmente
+                const raycaster = cursor.components.raycaster;
+                raycaster.refreshObjects();
+                const intersections = raycaster.intersections;
+                
+                if (intersections.length > 0) {
+                    const intersection = intersections[0];
+                    const point = intersection.point;
+                    
+                    // Convertir a coordenadas del grid
+                    const localPoint = mainContainer.object3D.worldToLocal(point.clone());
+                    const gridX = Math.floor((localPoint.x - GRID_OFFSET_X) / GRID_SIZE);
+                    const gridZ = Math.floor((localPoint.z - GRID_OFFSET_Z) / GRID_SIZE);
+                    
+                    if (gridX >= 0 && gridX < GRID_WIDTH && gridZ >= 0 && gridZ < GRID_HEIGHT) {
+                        placeBlockAt(gridX, gridZ);
+                    }
+                }
+            };
+            
+            // Agregar listeners de toque
+            canvas.addEventListener('touchstart', handleTouch, { passive: false });
+            canvas.addEventListener('click', handleTouch, { passive: false });
+        }
+        
+        function placeBlockAt(gridX, gridZ) {
+            // Calcular altura para apilar bloques
+            const key = `${gridX},${gridZ}`;
+            const height = gridMap[key] || 0;
+            
+            // Posición en el mundo
+            const worldX = GRID_OFFSET_X + gridX * GRID_SIZE;
+            const worldZ = GRID_OFFSET_Z + gridZ * GRID_SIZE;
+            const worldY = height * GRID_SIZE + GRID_SIZE/2;
+            
+            // Crear bloque
+            const container = document.getElementById('blockContainer');
+            const block = document.createElement('a-entity');
+            
+            // Configurar geometría según la forma actual
+            const colors = {
+                cube: '#4CAF50',
+                sphere: '#2196F3',
+                cylinder: '#FF9800',
+                pyramid: '#9C27B0'
+            };
+            
+            switch(currentShape) {
+                case 'cube':
+                    block.setAttribute('geometry', `primitive: box; width: ${GRID_SIZE}; height: ${GRID_SIZE}; depth: ${GRID_SIZE}`);
+                    break;
+                case 'sphere':
+                    block.setAttribute('geometry', `primitive: sphere; radius: ${GRID_SIZE/2}`);
+                    break;
+                case 'cylinder':
+                    block.setAttribute('geometry', `primitive: cylinder; radius: ${GRID_SIZE/2}; height: ${GRID_SIZE}`);
+                    break;
+                case 'pyramid':
+                    block.setAttribute('geometry', `primitive: cone; radiusBottom: ${GRID_SIZE/2}; radiusTop: 0; height: ${GRID_SIZE}`);
+                    break;
+            }
+            
+            block.setAttribute('material', `color: ${colors[currentShape]}; shader: flat`);
+            block.setAttribute('position', `${worldX} ${worldY} ${worldZ}`);
+            
+            // Animación de aparición
+            block.setAttribute('scale', '0 0 0');
+            block.setAttribute('animation', 'property: scale; to: 1 1 1; dur: 200; easing: easeOutBack');
+            
+            container.appendChild(block);
+            
+            // Actualizar mapa del grid
+            gridMap[key] = height + 1;
+            
+            // Guardar información del bloque
+            blocks.push({
+                element: block,
+                shape: currentShape,
+                gridX: gridX,
+                gridZ: gridZ,
+                height: height
+            });
+            
+            totalVolume += volumes[currentShape];
+            updateUI();
+            
+            // Vibración
+            if (navigator.vibrate) {
+                navigator.vibrate(30);
+            }
+        }
+        
+        function selectShape(shape) {
+            currentShape = shape;
+            document.querySelectorAll('.shapeBtn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-shape="${shape}"]`).classList.add('active');
+        }
+        
+        function clearAll() {
+            const container = document.getElementById('blockContainer');
+            
+            // Animar y eliminar bloques
+            blocks.forEach((block, index) => {
+                setTimeout(() => {
+                    block.element.setAttribute('animation', 'property: scale; to: 0 0 0; dur: 200');
+                    setTimeout(() => block.element.remove(), 200);
+                }, index * 50);
+            });
+            
+            // Limpiar datos
+            blocks = [];
+            totalVolume = 0;
+            Object.keys(gridMap).forEach(key => delete gridMap[key]);
+            updateUI();
+        }
+        
+        function updateUI() {
+            document.getElementById('blockCount').textContent = blocks.length;
+            document.getElementById('volumeCount').textContent = totalVolume.toFixed(3);
+            updateMission();
+        }
+        
+        function updateMission() {
+            let currentMission = missions[0].text;
+            let previousMission = document.getElementById('missionText').textContent;
+            
+            for (let i = 0; i < missions.length; i++) {
+                const mission = missions[i];
+                if (mission.count && blocks.length >= mission.count) {
+                    currentMission = missions[i + 1]?.text || "¡Excelente! Sigue construyendo";
+                } else if (mission.volume && totalVolume >= mission.volume) {
+                    currentMission = missions[i + 1]?.text || "¡Maestro constructor!";
+                } else {
+                    break;
+                }
+            }
+            
+            document.getElementById('missionText').textContent = currentMission;
+            
+            if (currentMission !== previousMission && blocks.length > 0) {
+                showNotification('¡Misión completada! 🎉', 'success');
+            }
+        }
+        
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                bottom: 120px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 15px 25px;
+                background: ${type === 'success' ? '#4CAF50' : type === 'warning' ? '#FF9800' : '#2196F3'};
+                color: white;
+                border-radius: 25px;
+                font-weight: bold;
+                font-size: 16px;
+                z-index: 200;
+                animation: slideUp 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideDown 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 2500);
+        }
+    </script>
+</body>
+</html>

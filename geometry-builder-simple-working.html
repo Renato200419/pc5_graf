@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script>
+        let blockCount = 0;
+        let totalVolume = 0;
+        let currentShape = 'cube';
+        const gridMap = {};
+        
+        AFRAME.registerComponent('mindar-image-target-handler', {
+            init: function() {
+                this.el.addEventListener('targetFound', event => {
+                    console.log('Target found');
+                    document.getElementById('status').textContent = '✅ Tarjeta detectada - Toca para colocar bloques';
+                    document.getElementById('status').style.background = '#4CAF50';
+                });
+                this.el.addEventListener('targetLost', event => {
+                    console.log('Target lost');
+                    document.getElementById('status').textContent = '❌ Tarjeta perdida';
+                    document.getElementById('status').style.background = '#FF9800';
+                });
+            }
+        });
+        
+        function startAR() {
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('arScene').style.display = 'block';
+            document.getElementById('ui').style.display = 'block';
+            
+            const sceneEl = document.querySelector('a-scene');
+            const arSystem = sceneEl.systems['mindar-image-system'];
+            arSystem.start();
+        }
+        
+        function placeBlock(event) {
+            const scene = document.querySelector('a-scene');
+            if (!scene.components['mindar-image']) return;
+            
+            // Calcular posición basada en toque
+            const x = (Math.random() - 0.5) * 1.5;
+            const z = (Math.random() - 0.5) * 1.5;
+            const y = blockCount * 0.3;
+            
+            // Crear bloque
+            const block = document.createElement('a-entity');
+            
+            switch(currentShape) {
+                case 'cube':
+                    block.setAttribute('geometry', 'primitive: box; width: 0.3; height: 0.3; depth: 0.3');
+                    block.setAttribute('material', 'color: #4CAF50');
+                    totalVolume += 0.027;
+                    break;
+                case 'sphere':
+                    block.setAttribute('geometry', 'primitive: sphere; radius: 0.15');
+                    block.setAttribute('material', 'color: #2196F3');
+                    totalVolume += 0.014;
+                    break;
+                case 'cylinder':
+                    block.setAttribute('geometry', 'primitive: cylinder; radius: 0.15; height: 0.3');
+                    block.setAttribute('material', 'color: #FF9800');
+                    totalVolume += 0.021;
+                    break;
+                case 'pyramid':
+                    block.setAttribute('geometry', 'primitive: cone; radiusBottom: 0.15; radiusTop: 0; height: 0.3');
+                    block.setAttribute('material', 'color: #9C27B0');
+                    totalVolume += 0.009;
+                    break;
+            }
+            
+            block.setAttribute('position', `${x} ${y} ${z}`);
+            block.setAttribute('animation', 'property: scale; from: 0 0 0; to: 1 1 1; dur: 300');
+            
+            const container = document.querySelector('#blockContainer');
+            container.appendChild(block);
+            
+            blockCount++;
+            updateUI();
+            
+            // Vibración
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+        
+        function selectShape(shape) {
+            currentShape = shape;
+            document.querySelectorAll('.shapeBtn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
+        function clearAll() {
+            const container = document.querySelector('#blockContainer');
+            container.innerHTML = '';
+            blockCount = 0;
+            totalVolume = 0;
+            updateUI();
+        }
+        
+        function updateUI() {
+            document.getElementById('blockCount').textContent = blockCount;
+            document.getElementById('volumeCount').textContent = totalVolume.toFixed(3);
+            
+            // Actualizar misión
+            let mission = 'Coloca tu primer bloque';
+            if (blockCount >= 10) mission = '¡Maestro constructor!';
+            else if (blockCount >= 5) mission = 'Alcanza 10 bloques';
+            else if (blockCount >= 3) mission = 'Alcanza 5 bloques';
+            else if (blockCount >= 1) mission = 'Construye con 3 bloques';
+            
+            document.getElementById('mission').textContent = mission;
+        }
+        
+        // Manejar toques en toda la pantalla
+        document.addEventListener('DOMContentLoaded', () => {
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('shapeBtn') || e.target.id === 'startButton') return;
+                if (document.getElementById('arScene').style.display === 'block') {
+                    placeBlock(e);
+                }
+            });
+        });
+    </script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #startScreen {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        #startButton {
+            padding: 20px 40px;
+            font-size: 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        #ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+        }
+        
+        #scorePanel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            pointer-events: auto;
+        }
+        
+        #status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #FF9800;
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        
+        #toolbar {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+        
+        .shapeBtn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid white;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .shapeBtn.active {
+            background: #4CAF50;
+            transform: scale(1.1);
+        }
+        
+        a-scene {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <button id="startButton" onclick="startAR()">
+            🎮 Iniciar Geometry Builder AR
+        </button>
+    </div>
+    
+    <div id="ui">
+        <div id="scorePanel">
+            <h3>📚 Geometry Builder AR</h3>
+            <p style="color: #4CAF50;">ODS 4 - Educación</p>
+            <hr style="border-color: rgba(255,255,255,0.3);">
+            <p>📦 Bloques: <span id="blockCount">0</span></p>
+            <p>📐 Volumen: <span id="volumeCount">0.000</span> cm³</p>
+            <p>🎯 <span id="mission">Coloca tu primer bloque</span></p>
+        </div>
+        
+        <div id="status">Buscando tarjeta...</div>
+        
+        <div id="toolbar">
+            <button class="shapeBtn active" onclick="selectShape('cube')">🟦</button>
+            <button class="shapeBtn" onclick="selectShape('sphere')">🔵</button>
+            <button class="shapeBtn" onclick="selectShape('cylinder')">🟫</button>
+            <button class="shapeBtn" onclick="selectShape('pyramid')">🔺</button>
+            <button class="shapeBtn" onclick="clearAll()" style="background: rgba(244,67,54,0.5);">🗑️</button>
+        </div>
+    </div>
+
+    <a-scene
+        id="arScene"
+        mindar-image="imageTargetSrc: ./static/assets/targets/card.mind; maxTrack: 1; autoStart: false"
+        color-space="sRGB"
+        embedded
+        renderer="colorManagement: true, physicallyCorrectLights"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+    >
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <a-entity mindar-image-target="targetIndex: 0" mindar-image-target-handler>
+            <!-- Grid base -->
+            <a-plane
+                position="0 0 0"
+                rotation="-90 0 0"
+                width="2"
+                height="2"
+                color="#333333"
+                opacity="0.5"
+            ></a-plane>
+            
+            <!-- Líneas del grid -->
+            <a-entity id="grid">
+                <!-- Horizontales -->
+                <a-box position="0 0.01 -0.6" width="2" height="0.01" depth="0.01" color="#00ff00"></a-box>
+                <a-box position="0 0.01 -0.3" width="2" height="0.01" depth="0.01" color="#00ff00"></a-box>
+                <a-box position="0 0.01 0" width="2" height="0.01" depth="0.01" color="#00ff00"></a-box>
+                <a-box position="0 0.01 0.3" width="2" height="0.01" depth="0.01" color="#00ff00"></a-box>
+                <a-box position="0 0.01 0.6" width="2" height="0.01" depth="0.01" color="#00ff00"></a-box>
+                
+                <!-- Verticales -->
+                <a-box position="-0.6 0.01 0" width="0.01" height="0.01" depth="2" color="#00ff00"></a-box>
+                <a-box position="-0.3 0.01 0" width="0.01" height="0.01" depth="2" color="#00ff00"></a-box>
+                <a-box position="0 0.01 0" width="0.01" height="0.01" depth="2" color="#00ff00"></a-box>
+                <a-box position="0.3 0.01 0" width="0.01" height="0.01" depth="2" color="#00ff00"></a-box>
+                <a-box position="0.6 0.01 0" width="0.01" height="0.01" depth="2" color="#00ff00"></a-box>
+            </a-entity>
+            
+            <!-- Contenedor de bloques -->
+            <a-entity id="blockContainer"></a-entity>
+            
+            <!-- Texto educativo -->
+            <a-text value="Geometry Builder AR" position="0 1.5 0" align="center" color="#FFFFFF" width="4"></a-text>
+        </a-entity>
+    </a-scene>
+</body>
+</html>
